@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #6366f1;
+  --secondary: #a855f7;
+  --accent: #06b6d4;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  @apply bg-[#FBFBFF] text-slate-900 antialiased selection:bg-indigo-100;
+  font-feature-settings: "ss01", "ss02", "cv01";
+}
+
+/* Premium Background Mesh */
+.bg-mesh {
+  background-color: #fbfbff;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(6, 182, 212, 0.05) 0px, transparent 50%);
+}
+
+.glass-card {
+  @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.03)];
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-500;
+}
