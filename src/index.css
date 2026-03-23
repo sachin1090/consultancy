@@ -29,3 +29,13 @@ body {
 .text-gradient {
   @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-500;
 }
+
+/* Add this to your index.css */
+.mobile-glass {
+  @apply bg-white/80 backdrop-blur-lg border border-white/40 shadow-[0_4px_24px_rgba(0,0,0,0.04)];
+}
+
+.bg-aurora {
+  background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent),
+              radial-gradient(circle at bottom left, rgba(168, 85, 247, 0.05), transparent);
+}
