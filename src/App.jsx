@@ -1,225 +1,199 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
-import StudentPortal from './StudentPortal';
-import AdminPortal from './AdminPortal';
-import { 
-  GraduationCap, ArrowRight, Phone, Mail, MapPin, 
-  ChevronDown, Users, BookOpen, FileCheck, ArrowLeft, 
-  Sparkles, Star, Quote, Menu, X 
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronRight, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { supabase } from './supabaseClient.js';
+import LandingPage from './components/LandingPage.jsx';
+import StudentPortal from './components/StudentPortal.jsx';
+import AdminPortal from './components/AdminPortal.jsx';
 
-export default function App() {
-  // --- AUTH & SESSION STATE ---
+// --- Error Boundary to prevent Silent Freezes ---
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, errorMessage: '' }; }
+  static getDerivedStateFromError(error) { return { hasError: true, errorMessage: error.message }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-6 text-center font-sans">
+          <AlertCircle className="text-red-500 mb-4" size={48} />
+          <h1 className="text-3xl font-black uppercase text-slate-900 mb-2">Portal Crash Prevented</h1>
+          <p className="text-slate-500 font-bold mb-8 max-w-md">{this.state.errorMessage}</p>
+          <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs hover:bg-teal-600 transition-colors">
+            Clear Cache & Restart
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainApp() {
   const [session, setSession] = useState(null);
-  const [userRole, setUserRole] = useState(null); 
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true); 
+  const [authLoading, setAuthLoading] = useState(false); 
+  const [showAuth, setShowAuth] = useState(false); 
+  const [authMode, setAuthMode] = useState('login');
+  const [form, setForm] = useState({ email: '', password: '', name: '' });
+  const [appError, setAppError] = useState(null); 
 
-  // --- UI STATE ---
-  const [viewMode, setViewMode] = useState('site'); 
-  const [sitePage, setSitePage] = useState('home');
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState(null);
-  const [dummyData, setDummyData] = useState({ title: '', desc: '' });
-
-  // --- INITIALIZE AUTH ---
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) setAppError(error.message);
       setSession(session);
-      if (session) fetchUserProfile(session.user);
+      if (session) getProfile(session.user.id);
       else setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session) {
-        fetchUserProfile(session.user);
-      } else {
-        setUserRole(null);
-        setViewMode('site');
-        setLoading(false);
+        getProfile(session.user.id);
+      } else { 
+        setProfile(null); 
+        setLoading(false); 
+        if (event === 'SIGNED_OUT') setShowAuth(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = async (user) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (data) {
-      setUserRole(data.role); 
-      setViewMode(data.role === 'admin' ? 'admin' : 'portal');
-    }
-    setLoading(false);
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const openPage = (title, desc) => {
-    setDummyData({ title, desc });
-    setSitePage('dummy');
-    setIsMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  if (loading) return (
-    <div className="h-screen w-full flex items-center justify-center bg-white">
-      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }}>
-        <GraduationCap className="text-indigo-600" size={40} />
-      </motion.div>
-    </div>
-  );
-
-  // --- ROUTING ---
-  if (session && viewMode === 'portal' && userRole === 'student') {
-    return <StudentPortal onLogout={handleLogout} onExitToSite={() => setViewMode('site')} />;
-  }
-
-  if (session && viewMode === 'admin' && userRole === 'admin') {
-    return <AdminPortal onLogout={handleLogout} onExitToSite={() => setViewMode('site')} />;
-  }
-
-  return (
-    <div className="bg-[#FBFBFF] font-sans text-slate-900 selection:bg-indigo-100 overflow-x-hidden">
+  const getProfile = async (id) => {
+    try {
+      setAppError(null);
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
       
-      {/* NAVBAR */}
-      <nav className="fixed top-0 w-full z-[100] px-4 md:px-10 py-6">
-        <div className="max-w-7xl mx-auto bg-white/80 backdrop-blur-2xl border border-white shadow-2xl rounded-[2rem] px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3 font-black text-2xl tracking-tighter cursor-pointer" onClick={() => setSitePage('home')}>
-            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-lg">
-              <GraduationCap size={22}/>
-            </div>
-            <span>NEXT ERA</span>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => session ? setViewMode(userRole === 'admin' ? 'admin' : 'portal') : setIsLoginModalOpen(true)}
-              className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl"
-            >
-              {session ? 'Dashboard' : 'Portal Login'}
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      <main className="pt-32">
-        <AnimatePresence mode="wait">
-          {sitePage === 'home' ? (
-            <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <section className="pt-20 pb-20 text-center px-6 max-w-7xl mx-auto">
-                <h1 className="text-6xl md:text-[8rem] font-black tracking-tighter leading-[0.85] uppercase mb-12">
-                  Global <br/><span className="text-indigo-600">Ambition.</span>
-                </h1>
-                <p className="text-xl text-slate-500 max-w-2xl mx-auto mb-16 font-medium">
-                  The premier 2026 destination for Nepalese students seeking world-class education.
-                </p>
-                <button onClick={() => setIsLoginModalOpen(true)} className="bg-slate-900 text-white px-14 py-8 rounded-[3rem] font-black text-2xl flex items-center gap-4 mx-auto hover:bg-indigo-600 shadow-2xl transition-all">
-                  Join the Portal <ArrowRight size={28} />
-                </button>
-              </section>
-            </motion.div>
-          ) : (
-            <motion.div key="dummy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-4xl mx-auto py-40 px-6">
-                <button onClick={() => setSitePage('home')} className="flex items-center gap-2 text-indigo-600 font-black text-xs uppercase mb-10"><ArrowLeft size={16}/> Back Home</button>
-                <h2 className="text-7xl font-black mb-10 tracking-tighter uppercase">{dummyData.title}</h2>
-                <p className="text-2xl text-slate-500">{dummyData.desc}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      {/* LOGIN MODAL */}
-      <AnimatePresence>
-        {isLoginModalOpen && (
-          <LoginModal 
-            onClose={() => setIsLoginModalOpen(false)} 
-            onSuccess={() => setIsLoginModalOpen(false)} 
-          />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-const LoginModal = ({ onClose, onSuccess }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [loading, setLoading] = useState(false);
+      if (error && error.code === 'PGRST116') {
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+          const newProfile = {
+            id: id,
+            full_name: userData.user.user_metadata?.full_name || 'Scholar',
+            role: 'student',
+            status: 'Onboarding',
+            email: userData.user.email
+          };
+          await supabase.from('profiles').insert([newProfile]);
+          setProfile(newProfile);
+          setLoading(false);
+          return;
+        }
+      } else if (error) {
+        throw error;
+      }
+      
+      setProfile(data);
+    } catch (err) {
+      console.error("Profile Error:", err);
+      setAppError("Failed to verify user profile.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAuth = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName, role: 'student' } }
-      });
-      if (error) alert(error.message);
-      else {
-        alert("Success! Check your email for verification.");
-        setIsSignUp(false);
+    e.preventDefault(); 
+    setAuthLoading(true); 
+    setAppError(null);
+    try {
+      if (authMode === 'register') {
+        const { error } = await supabase.auth.signUp({ 
+          email: form.email, 
+          password: form.password, 
+          options: { data: { full_name: form.name, role: 'student', status: 'Onboarding' } } 
+        });
+        if (error) throw error;
+        alert("Registration successful! You can now log in.");
+        setAuthMode('login');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
+        if (error) throw error;
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert(error.message);
-      else onSuccess();
+    } catch (err) { 
+      setAppError(err.message); 
+    } finally {
+      setAuthLoading(false); 
     }
+  };
+
+  const emergencyReset = async () => {
+    setLoading(true);
+    await supabase.auth.signOut();
+    localStorage.clear(); 
+    sessionStorage.clear();
+    setProfile(null);
+    setSession(null);
+    setAppError(null);
+    setShowAuth(false);
     setLoading(false);
   };
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-white w-full max-w-md p-10 rounded-[3.5rem] shadow-2xl">
-        <h3 className="text-3xl font-black mb-2 text-center uppercase tracking-tighter">
-          {isSignUp ? 'Register' : 'Portal Login'}
-        </h3>
-        <p className="text-center text-slate-400 text-[10px] font-black uppercase tracking-widest mb-10">
-          Next Era Education Consultancy
-        </p>
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-teal-600" size={48} /></div>;
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          {isSignUp && (
-            <input 
-              className="w-full p-5 bg-slate-50 border rounded-2xl font-bold outline-indigo-600" 
-              placeholder="Full Name" 
-              value={fullName} onChange={e => setFullName(e.target.value)} required 
-            />
-          )}
-          <input 
-            className="w-full p-5 bg-slate-50 border rounded-2xl font-bold outline-indigo-600" 
-            placeholder="Email" type="email"
-            value={email} onChange={e => setEmail(e.target.value)} required 
-          />
-          <input 
-            className="w-full p-5 bg-slate-50 border rounded-2xl font-bold outline-indigo-600" 
-            placeholder="Password" type="password"
-            value={password} onChange={e => setPassword(e.target.value)} required 
-          />
-          <button disabled={loading} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg uppercase shadow-xl disabled:opacity-50">
-            {loading ? 'Wait...' : (isSignUp ? 'Create Account' : 'Login')}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center">
-          <button onClick={() => setIsSignUp(!isSignUp)} className="text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600">
-            {isSignUp ? 'Already a member? Login' : "New student? Register here"}
+  if (session) {
+    if (!profile) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center bg-slate-50 font-sans p-6 text-center">
+          {appError ? (
+             <>
+               <AlertCircle className="text-red-500 mb-4" size={48} />
+               <p className="text-slate-500 font-bold mb-8 max-w-sm">{appError}</p>
+             </>
+          ) : <Loader2 className="animate-spin text-teal-600 mb-8" size={48} />}
+          <button type="button" onClick={emergencyReset} className="bg-slate-900 text-white px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-600 transition-colors shadow-xl">
+            Emergency Sign Out
           </button>
         </div>
-      </motion.div>
-    </div>
+      );
+    }
+
+    if (profile.role === 'admin') return <AdminPortal onLogout={emergencyReset} />;
+    if (profile.role === 'suspended') return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="bg-red-50 text-red-500 w-24 h-24 rounded-full flex items-center justify-center mb-8"><AlertCircle size={48} /></div>
+        <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase mb-4">Account Suspended</h1>
+        <button type="button" onClick={emergencyReset} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-teal-600 transition-colors mt-8">Sign Out</button>
+      </div>
+    );
+    
+    return <StudentPortal profile={profile} session={session} onLogout={emergencyReset} />;
+  }
+
+  if (showAuth) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative font-sans">
+        <button type="button" onClick={() => setShowAuth(false)} className="absolute top-8 left-8 flex items-center gap-2 font-bold text-slate-400 hover:text-slate-900 uppercase text-xs tracking-widest transition-colors z-10">
+          <ChevronRight className="rotate-180" size={16}/> Back Home
+        </button>
+        
+        <h1 className="text-5xl md:text-7xl font-black text-slate-900 tracking-tighter mb-10 text-center">ACCESS <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-emerald-500">PORTAL.</span></h1>
+        
+        <div className="max-w-md w-full bg-white p-10 rounded-[3rem] shadow-2xl shadow-teal-900/5 border border-teal-50 relative z-10">
+          {appError && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-bold flex items-center gap-2"><AlertCircle size={16} className="flex-shrink-0" /> {appError}</div>}
+
+          <form onSubmit={handleAuth} className="space-y-4 mb-6">
+            {authMode === 'register' && <input type="text" required placeholder="Full Name" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 font-bold" onChange={e => setForm({...form, name: e.target.value})} />}
+            <input type="email" required placeholder="Email Address" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 font-bold" onChange={e => setForm({...form, email: e.target.value})} />
+            <input type="password" required placeholder="Password" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 font-bold" onChange={e => setForm({...form, password: e.target.value})} />
+            
+            <button type="submit" disabled={authLoading} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-teal-600 transition-colors mt-2 flex justify-center items-center h-16">
+              {authLoading ? <Loader2 className="animate-spin" size={24} /> : (authMode === 'login' ? 'Secure Login' : 'Create Account')}
+            </button>
+          </form>
+          <p className="text-center font-black text-slate-400 uppercase text-[10px] tracking-widest cursor-pointer hover:text-teal-600" onClick={() => { setAppError(null); setAuthMode(authMode === 'login' ? 'register' : 'login'); }}>{authMode === 'login' ? "New Scholar? Register here" : "Have an account? Sign in"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <LandingPage onNavigateAuth={() => setShowAuth(true)} />;
+}
+
+// Wrap the app before exporting
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
   );
-};
+}

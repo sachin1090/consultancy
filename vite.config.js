@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react-swc' // Added "plugin-" here
+import react from '@vitejs/plugin-react-swc'
 
 export default defineConfig({
   plugins: [react()],
-  // If you are deploying to a subfolder like /consultancy/, keep this. 
-  // If it's the main domain, use '/'
-  base: '/', 
+  base: '/',
+  build: {
+    outDir: 'dist', // Ensure it goes to dist
+    emptyOutDir: true, // Clears the folder before building
+  }
 })

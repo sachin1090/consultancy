@@ -1,3 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* If the line above gives an error, use the old three lines below instead: */
+/* @tailwind base; @tailwind components; @tailwind utilities; */
+
+:root {
+  --indigo-primary: #4f46e5;
+}
+
+@layer base {
+  body {
+    @apply bg-[#FBFBFF] text-slate-900 antialiased;
+  }
+}
+
+/* Custom button class to test if Tailwind is working */
+.btn-premium {
+  @apply bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black transition-all hover:scale-105 shadow-xl;
+}
